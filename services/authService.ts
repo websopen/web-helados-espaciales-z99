@@ -1,8 +1,9 @@
 /**
- * Auth Service - Communicates with marti-api Worker
+ * Auth Service - Communicates with helados-api Worker
  */
 
-const API_BASE = '/api';
+// API URL - using worker directly
+const API_BASE = 'https://helados-api.nicolasqw31.workers.dev/api';
 
 interface TokenValidationResponse {
     valid?: boolean;

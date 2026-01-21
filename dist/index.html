@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Carta de Helados</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+    <meta name="theme-color" content="#EC4899" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Helados" />
+    
+    <!-- SEO -->
+    <meta name="description" content="Carta de sabores de helados artesanales. Consulta nuestros precios y sabores disponibles." />
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Outfit', 'sans-serif'],
+            },
+            colors: {
+              'glacial-bg': '#FDF2F8',
+              'glacial-dark': '#1c1917',
+              'glacial-glass': 'rgba(255, 255, 255, 0.65)',
+              'glacial-glass-dark': 'rgba(28, 25, 23, 0.75)',
+              'glacial-accent': '#EC4899',
+            },
+            backgroundImage: {
+              'radial-white': 'radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 70%)',
+              'radial-dark': 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0) 70%)',
+            },
+            animation: {
+              'bounce-in': 'bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both',
+              'fade-in-up': 'fade-in-up 0.5s ease-out both',
+              'marquee': 'marquee 25s linear infinite',
+              'spin-slow': 'spin 3s linear infinite',
+            },
+            keyframes: {
+              'bounce-in': {
+                '0%': { opacity: '0', transform: 'scale(0.3)' },
+                '50%': { opacity: '1', transform: 'scale(1.05)' },
+                '70%': { transform: 'scale(0.9)' },
+                '100%': { transform: 'scale(1)' },
+              },
+              'fade-in-up': {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              'marquee': {
+                '0%': { transform: 'translateX(0)' },
+                '100%': { transform: 'translateX(-50%)' },
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      :root {
+        --navbar-color: 251, 207, 232;
+        --navbar-opacity: 0.80;
+      }
+      .dark {
+        --navbar-color: 88, 12, 40;
+        --navbar-opacity: 0.85;
+      }
+      body {
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+      .liquid-nav {
+        background: rgba(var(--navbar-color), var(--navbar-opacity));
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+      }
+      .dark .liquid-nav {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      }
+    </style>
+
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.36.0"
+  }
+}
+</script>
+  <script type="module" crossorigin src="/assets/index-DNMev2A6.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-5f2RaY_N.css">
+</head>
+  <body>
+    <div id="root"></div>
+</body>
+</html>

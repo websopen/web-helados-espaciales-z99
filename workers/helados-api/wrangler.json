@@ -1,0 +1,11 @@
+{
+    "name": "helados-api",
+    "main": "src/index.ts",
+    "compatibility_date": "2024-01-01",
+    "kv_namespaces": [
+        {
+            "binding": "HELADOS_KV",
+            "id": "5c4c54a4fb4f4e4eae9e48a41e63987d"
+        }
+    ]
+}

@@ -8,7 +8,7 @@ import { StoreClosedModal } from './components/StoreClosedModal';
 import { FLAVORS, PRICES } from './constants';
 import { Product } from './types';
 import { checkAuth, validateToken, activateAdmin, getTokenFromUrl, clearTokenFromUrl } from './services/authService';
-import { loadStoreData, saveStoreData, StoreData, SocialLinks, defaultSocialLinks } from './services/storeService';
+import { loadStoreData, saveStoreData, SocialLinks, defaultSocialLinks, defaultPrices } from './services/storeService';
 
 const App: React.FC = () => {
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
@@ -51,11 +51,8 @@ const App: React.FC = () => {
   });
   const [customPrices, setCustomPrices] = useState(PRICES);
   const [storeSettings, setStoreSettings] = useState({
-    isOpen: true,
-    deliveryAvailable: false,
-    pickupAvailable: true
+    isOpen: true
   });
-  const [sectionOrder, setSectionOrder] = useState<'chocolate-first' | 'crema-first'>('crema-first');
   const [socialLinks, setSocialLinks] = useState<SocialLinks>(defaultSocialLinks);
 
   // Initial load: check auth and load store data
@@ -89,7 +86,6 @@ const App: React.FC = () => {
         setCustomPrices(prev => ({ ...prev, ...data.prices }));
       }
       setStoreSettings(data.settings);
-      setSectionOrder(data.sectionOrder || 'crema-first');
       setSocialLinks(data.socialLinks || defaultSocialLinks);
 
       setIsLoading(false);
@@ -118,8 +114,6 @@ const App: React.FC = () => {
       stock: stockStatus,
       prices: customPrices,
       settings: storeSettings,
-      offer: 'none',
-      sectionOrder: sectionOrder,
       socialLinks: socialLinks,
     });
 

@@ -1,54 +1,33 @@
 /**
  * Store Service - Manages store data via Cloudflare KV
+ * Simplified for ice cream menu (no ordering)
  */
 
-const API_BASE = '/api';
+// API URL - using worker directly, will be updated when custom domain is set
+const API_BASE = 'https://helados-api.nicolasqw31.workers.dev/api';
 
 interface StoreSettings {
     isOpen: boolean;
-    deliveryAvailable: boolean;
-    pickupAvailable: boolean;
 }
 
 export interface SocialLinks {
     instagram: string;
-    tiktok: string;
     whatsapp: string;
 }
 
-export interface ElementColors {
-    navbarColor: string;      // Barra Superior (color)
-    navbarOpacity: number;    // Barra Superior (transparencia 0-1)
-    background: string;       // Fondo de Página
-    cardBg: string;          // Cards/Productos
-    text: string;            // Texto Principal
-    accent: string;          // Botones y Acentos
-}
-
-export interface ThemeColors {
-    light: ElementColors;
-    dark: ElementColors;
-}
-
-// Legacy support
-export interface CustomColors {
-    primary: string;
-    secondary: string;
-    background: string;
-    cardBg: string;
-    text: string;
-    accent: string;
+export interface Prices {
+    cuarto: number;    // 1/4 kg
+    medio: number;     // 1/2 kg
+    kilo: number;      // 1 kg
+    cucurucho: number;
+    doble: number;
 }
 
 export interface StoreData {
-    stock: Record<string, boolean>;
-    prices: Record<string, number>;
+    stock: Record<string, boolean>;  // Flavor availability
+    prices: Prices;                   // Prices by quantity
     settings: StoreSettings;
-    offer: string;
-    sectionOrder: 'milky-first' | 'water-first';
     socialLinks: SocialLinks;
-    customColors: CustomColors;
-    themeColors?: ThemeColors;  // New theme-aware colors
 }
 
 interface SaveResponse {
@@ -60,41 +39,19 @@ interface SaveResponse {
 // Default values
 export const defaultSocialLinks: SocialLinks = {
     instagram: '',
-    tiktok: '',
-    whatsapp: '5491155146230'
+    whatsapp: ''
 };
 
-export const defaultCustomColors: CustomColors = {
-    primary: '#78716C',
-    secondary: '#EC4899',
-    background: '#F5F5F4',
-    cardBg: '#FFFFFF',
-    text: '#1C1917',
-    accent: '#F97316'
-};
-
-// Real element defaults based on current design
-export const defaultThemeColors: ThemeColors = {
-    light: {
-        navbarColor: '#FFB9D2',    // Rosa claro actual
-        navbarOpacity: 0.80,
-        background: '#F5F5F7',     // glacial-bg
-        cardBg: '#FFFFFF',
-        text: '#1C1917',           // stone-900
-        accent: '#25D366',         // WhatsApp green
-    },
-    dark: {
-        navbarColor: '#580C28',    // Rosa vino oscuro actual
-        navbarOpacity: 0.85,
-        background: '#1C1917',     // glacial-dark (stone-900)
-        cardBg: '#292524',         // stone-800
-        text: '#FAFAF9',           // stone-50
-        accent: '#25D366',         // WhatsApp green
-    }
+export const defaultPrices: Prices = {
+    cuarto: 3500,
+    medio: 6500,
+    kilo: 12000,
+    cucurucho: 2500,
+    doble: 4000,
 };
 
 /**
- * Load all store data (stock, prices, settings, offer)
+ * Load all store data (stock, prices, settings)
  */
 export async function loadStoreData(): Promise<StoreData> {
     try {
@@ -113,12 +70,9 @@ export async function loadStoreData(): Promise<StoreData> {
         // Return defaults
         return {
             stock: {},
-            prices: {},
-            settings: { isOpen: true, deliveryAvailable: true, pickupAvailable: true },
-            offer: 'none',
-            sectionOrder: 'milky-first',
+            prices: defaultPrices,
+            settings: { isOpen: true },
             socialLinks: defaultSocialLinks,
-            customColors: defaultCustomColors,
         };
     }
 }
