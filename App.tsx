@@ -5,10 +5,13 @@ import { PriceTable } from './components/PriceTable';
 import { Footer } from './components/Footer';
 import { AdminModal } from './components/AdminModal';
 import { StoreClosedModal } from './components/StoreClosedModal';
-import { FLAVORS, PRICES } from './constants';
-import { Product } from './types';
+import { SelectionBar } from './components/SelectionBar';
+import { Product, Store, Cart, OrderItem, PRODUCT_CONFIG } from './types';
+import { defaultSocialLinks, FLAVORS as INITIAL_FLAVORS, PRICES } from './constants';
 import { checkAuth, validateToken, activateAdmin, getTokenFromUrl, clearTokenFromUrl } from './services/authService';
-import { loadStoreData, saveStoreData, SocialLinks, defaultSocialLinks, defaultPrices } from './services/storeService';
+import { loadStoreData, saveStoreData, SocialLinks } from './services/storeService';
+
+import { CartModal } from './components/CartModal';
 
 const App: React.FC = () => {
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
@@ -19,41 +22,37 @@ const App: React.FC = () => {
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [showPinModal, setShowPinModal] = useState(false);
 
-  // Dark Mode Logic
-  const [theme, setTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') || 'light';
-    }
-    return 'light';
-  });
+  // --- THEME LOGIC REMOVED ---
 
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  };
 
   // State for Batch Updates
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Store data from KV
-  const [stockStatus, setStockStatus] = useState<{ [key: string]: boolean }>(() => {
-    const initial: { [key: string]: boolean } = {};
-    FLAVORS.forEach(p => initial[p.id] = true);
-    return initial;
-  });
+  // Store data
   const [customPrices, setCustomPrices] = useState(PRICES);
-  const [storeSettings, setStoreSettings] = useState({
-    isOpen: true
+  const [flavors, setFlavors] = useState<Product[]>(INITIAL_FLAVORS);
+  const [stockStatus, setStockStatus] = useState<Record<string, boolean>>({});
+  const [storeSettings, setStoreSettings] = useState({ isOpen: true });
+  const [socialLinks, setSocialLinks] = useState(defaultSocialLinks);
+
+  // --- ORDERING STATE ---
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [currentProduct, setCurrentProduct] = useState<{ key: string; price: number; label: string } | null>(null);
+  const [selectedFlavors, setSelectedFlavors] = useState<string[]>([]);
+  const [cart, setCart] = useState<Cart>({ items: [], total: 0 });
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  // ----------------------
+
+  // Admin / Edit Mode
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // New Flavor Form State
+  const [showAddFlavor, setShowAddFlavor] = useState(false);
+  const [newFlavor, setNewFlavor] = useState<Partial<Product>>({
+    category: 'crema',
+    gradient: 'from-stone-100 to-stone-200'
   });
-  const [socialLinks, setSocialLinks] = useState<SocialLinks>(defaultSocialLinks);
 
   // Initial load: check auth and load store data
   useEffect(() => {
@@ -73,20 +72,34 @@ const App: React.FC = () => {
         }
       }
 
-      // Check if current user is admin (via cookie)
+      // Check if current user is admin
       const authStatus = await checkAuth();
       setHasAdminAccess(authStatus.isAdmin);
+      setIsAdmin(authStatus.isAdmin); // Set isAdmin based on auth status
 
       // Load store data from KV
       const data = await loadStoreData();
+
+      // Initialize stock
       if (Object.keys(data.stock).length > 0) {
         setStockStatus(prev => ({ ...prev, ...data.stock }));
+      } else {
+        // If no stock data, assume all initial flavors are in stock
+        const initialStock: { [key: string]: boolean } = {};
+        INITIAL_FLAVORS.forEach(f => initialStock[f.id] = true);
+        setStockStatus(initialStock);
       }
-      if (data.prices) {
-        setCustomPrices(prev => ({ ...prev, ...data.prices }));
-      }
+
+      if (data.prices) setCustomPrices(prev => ({ ...prev, ...data.prices }));
       setStoreSettings(data.settings);
       setSocialLinks(data.socialLinks || defaultSocialLinks);
+
+      // Load dynamic flavors if exist, otherwise use constants
+      if (data.flavors && data.flavors.length > 0) {
+        setFlavors(data.flavors);
+      } else {
+        setFlavors(INITIAL_FLAVORS);
+      }
 
       setIsLoading(false);
     };
@@ -101,6 +114,7 @@ const App: React.FC = () => {
     const result = await activateAdmin(pendingToken, pin);
     if (result.success) {
       setHasAdminAccess(true);
+      setIsAdmin(true); // Also set isAdmin here
       setIsEditing(true);
       setPendingToken(null);
       return true;
@@ -115,6 +129,7 @@ const App: React.FC = () => {
       prices: customPrices,
       settings: storeSettings,
       socialLinks: socialLinks,
+      flavors: flavors // Save dynamic flavors
     });
 
     if (result.success) {
@@ -156,121 +171,288 @@ const App: React.FC = () => {
     setHasUnsavedChanges(true);
   };
 
-  // Filter by category
-  const chocolateFlavors = FLAVORS.filter(p => p.category === 'chocolate');
-  const cremaFlavors = FLAVORS.filter(p => p.category === 'crema');
-  const frutalFlavors = FLAVORS.filter(p => p.category === 'frutal');
-  const especialFlavors = FLAVORS.filter(p => p.category === 'especial');
+  // --- ORDERING HANDLERS ---
+  const handleSelectProduct = (key: string, price: number, label: string) => {
+    if (!storeSettings.isOpen && !isEditing) {
+      alert('El local está cerrado en este momento.');
+      return;
+    }
+    setCurrentProduct({ key, price, label });
+    setSelectedFlavors([]);
+    setIsSelecting(true);
+    // Smooth scroll to flavors
+    const flavorSection = document.getElementById('flavors-start');
+    if (flavorSection) flavorSection.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const getMaxFlavors = () => {
+    if (!currentProduct) return 0;
+    return PRODUCT_CONFIG[currentProduct.key]?.maxFlavors || 4;
+  };
+
+  const handleFlavorClick = (flavorName: string) => {
+    if (!isSelecting || !currentProduct) return;
+
+    if (selectedFlavors.includes(flavorName)) {
+      setSelectedFlavors(prev => prev.filter(f => f !== flavorName));
+    } else {
+      if (selectedFlavors.length < getMaxFlavors()) {
+        setSelectedFlavors(prev => [...prev, flavorName]);
+      }
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (!currentProduct) return;
+    const newItem: OrderItem = {
+      id: crypto.randomUUID(),
+      productKey: currentProduct.key,
+      productName: currentProduct.label,
+      price: currentProduct.price,
+      flavors: [...selectedFlavors]
+    };
+    setCart(prev => ({
+      items: [...prev.items, newItem],
+      total: prev.total + newItem.price
+    }));
+    setIsSelecting(false);
+    setCurrentProduct(null);
+    setSelectedFlavors([]);
+  };
+
+  const handleCancelSelection = () => {
+    setIsSelecting(false);
+    setCurrentProduct(null);
+    setSelectedFlavors([]);
+  };
+  // -------------------------
+
+  const handleAddFlavor = () => {
+    if (!newFlavor.name || !newFlavor.category) return;
+
+    const id = `new_${Date.now()}`;
+    const flavorToAdd: Product = {
+      id,
+      name: newFlavor.name,
+      description: newFlavor.description || '',
+      price: 0,
+      category: newFlavor.category as any,
+      gradient: newFlavor.gradient || 'from-stone-100 to-stone-200'
+    };
+
+    setFlavors(prev => [...prev, flavorToAdd]);
+    setStockStatus(prev => ({ ...prev, [id]: true })); // Default to in stock
+    setNewFlavor({ category: 'crema', gradient: 'from-stone-100 to-stone-200' });
+    setShowAddFlavor(false);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleDeleteFlavor = (id: string) => {
+    if (!confirm('¿Eliminar este sabor?')) return;
+    setFlavors(prev => prev.filter(f => f.id !== id));
+    setHasUnsavedChanges(true);
+  };
+
+  // VISIBILITY LOGIC:
+  // If Admin: Show ALL flavors (transparency for out of stock)
+  // If Public: Show ONLY flavors that are IN STOCK
+  const visibleFlavors = flavors.filter(f => {
+    if (isEditing) return true; // Editor sees all
+    return stockStatus[f.id] !== false; // Public sees only in-stock
+  });
+
+  const chocolateFlavors = visibleFlavors.filter(p => p.category === 'chocolate');
+  const cremaFlavors = visibleFlavors.filter(p => p.category === 'crema');
+  const frutalFlavors = visibleFlavors.filter(p => p.category === 'frutal');
+  const especialFlavors = visibleFlavors.filter(p => p.category === 'especial');
 
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-pink-50 dark:bg-stone-900">
-        <div className="animate-spin w-10 h-10 border-4 border-pink-300 border-t-pink-600 rounded-full"></div>
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-stone-950">
+        <div className="animate-spin w-10 h-10 border-4 border-stone-300 border-t-stone-600 rounded-full"></div>
       </div>
     );
   }
 
-  const renderFlavorSection = (title: string, emoji: string, subtitle: string, flavors: Product[]) => (
-    <div className="mb-8">
-      <div className="mb-5 flex items-center gap-3 px-1">
-        <div className="w-10 h-10 rounded-2xl bg-white/70 dark:bg-stone-800/70 backdrop-blur-sm border border-white/60 dark:border-stone-700 shadow-sm flex items-center justify-center text-xl">
-          {emoji}
-        </div>
-        <div className="flex flex-col">
-          <h2 className="font-serif font-bold text-2xl text-stone-800 dark:text-stone-100 leading-none">{title}</h2>
-          <span className="text-xs text-stone-400 font-medium tracking-wide">{subtitle}</span>
-        </div>
-      </div>
+  const renderFlavorSection = (title: string, subtitle: string, items: Product[]) => {
+    if (items.length === 0 && !isEditing) return null; // Hide empty sections for public
 
-      <div className="grid grid-cols-3 gap-2">
-        {flavors.map(flavor => (
-          <FlavorCard
-            key={flavor.id}
-            flavor={flavor}
-            inStock={stockStatus[flavor.id] ?? true}
-            isAdmin={isEditing}
-            onToggleStock={handleToggleStock}
-          />
-        ))}
+    return (
+      <div className="mb-16">
+        <div className="mb-8 flex flex-col items-center text-center px-1">
+          <h2 className="font-serif font-bold text-3xl text-stone-800 dark:text-stone-100 mb-2 tracking-wide border-b-2 border-stone-200 dark:border-stone-800 pb-2 px-8 inline-block">
+            {title}
+          </h2>
+          <span className="text-xs text-stone-500 dark:text-stone-400 font-medium uppercase tracking-[0.2em]">
+            {subtitle}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {items.map(flavor => (
+            <div key={flavor.id} className="relative group/item">
+              <FlavorCard
+                flavor={flavor}
+                inStock={stockStatus[flavor.id] ?? true}
+                isAdmin={isEditing}
+                onToggleStock={handleToggleStock}
+                selectable={isSelecting}
+                selected={selectedFlavors.includes(flavor.name)}
+                onSelect={() => handleFlavorClick(flavor.name)}
+              />
+              {isEditing && (
+                <button
+                  onClick={() => handleDeleteFlavor(flavor.id)}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover/item:opacity-100 transition-opacity shadow-md z-10"
+                  title="Eliminar sabor"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
-    <div className="min-h-screen text-stone-800 dark:text-stone-100 bg-gradient-to-b from-pink-50 to-amber-50 dark:from-stone-900 dark:to-stone-950 transition-colors duration-300">
+    <div className="min-h-screen relative text-stone-800 selection:bg-stone-500/30 selection:text-stone-900">
+      {/* Background Layer (Light Marble Only) - Force Rebuild v3 */}
+      <div className="fixed inset-0 z-[-1] bg-marble bg-repeat bg-fixed pointer-events-none" />
+
+
+      {/* Main Content */}
       <Navbar
         showAdminSwitch={hasAdminAccess}
         isEditing={isEditing}
         onToggleEdit={() => setIsEditing(!isEditing)}
         storeOpen={storeSettings.isOpen}
-        onLogoClick={() => { }}
-        isDarkMode={theme === 'dark'}
-        toggleTheme={toggleTheme}
+        onLogoClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        cartCount={cart.items.length}
+        onOpenCart={() => setIsCartOpen(true)}
       />
 
       <StoreClosedModal isOpen={storeSettings.isOpen} />
 
-      <main className="pt-20 px-4 max-w-lg mx-auto transition-all duration-300">
+      <CartModal
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        cart={cart}
+        onRemoveItem={(id) => setCart(prev => ({
+          items: prev.items.filter(item => item.id !== id),
+          total: prev.items.filter(item => item.id !== id).reduce((acc, curr) => acc + curr.price, 0)
+        }))}
+      />
 
+      <SelectionBar
+        currentProduct={currentProduct}
+        selectedCount={selectedFlavors.length}
+        maxFlavors={getMaxFlavors()}
+        onAdd={handleAddToCart}
+        onCancel={handleCancelSelection}
+      />
+
+
+      <main className="pt-20 px-4 max-w-6xl mx-auto transition-all duration-300 pb-24">
+        <div id="flavors-start"></div>
         {/* PRICE TABLE - Always visible at top */}
         <PriceTable
           prices={customPrices}
           isAdmin={isEditing}
           onPriceChange={handlePriceChange}
+          onSelect={handleSelectProduct}
         />
 
         {/* ADMIN PANEL */}
         {isEditing && (
           <div className="mb-8 bg-stone-900 dark:bg-stone-800 rounded-2xl p-5 shadow-xl text-white animate-fade-in-up border border-stone-800 dark:border-stone-700">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-2 opacity-80">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <h3 className="font-bold uppercase tracking-wider text-xs">Panel de Control</h3>
+            <div className="flex justify-between items-center mb-6 border-b border-stone-700 pb-4">
+              <div>
+                <h3 className="font-bold uppercase tracking-wider text-sm mb-1">Panel de Control</h3>
+                <p className="text-xs text-stone-400">Gestiona precios, stock y nuevos sabores</p>
               </div>
-
               <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full border border-green-500/30">
-                Admin Activo
+                Modo Edición
               </span>
             </div>
 
-            <button
-              onClick={() => toggleStoreSetting('isOpen')}
-              className={`w-full py-3 rounded-xl font-bold text-lg mb-4 transition-all shadow-md flex items-center justify-center gap-2 ${storeSettings.isOpen
-                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
-                : 'bg-stone-700 text-stone-300'
-                }`}
-            >
-              <span className="text-2xl">{storeSettings.isOpen ? '🔓' : '🔒'}</span>
-              {storeSettings.isOpen ? 'HELADERÍA ABIERTA' : 'HELADERÍA CERRADA'}
-            </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-xs font-bold text-stone-400 uppercase mb-3">Estado del Local</label>
+                <button
+                  onClick={() => toggleStoreSetting('isOpen')}
+                  className={`w-full py-3 rounded-xl font-bold text-sm transition-all shadow-md flex items-center justify-center gap-2 ${storeSettings.isOpen
+                    ? 'bg-stone-700 text-green-400 border border-green-500/30'
+                    : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                    }`}
+                >
+                  <span className="text-xl">{storeSettings.isOpen ? '🟢' : '🔴'}</span>
+                  {storeSettings.isOpen ? 'ABIERTO AL PÚBLICO' : 'CERRADO'}
+                </button>
 
-            {/* Social Links Section */}
-            <div className="border-t border-stone-700 pt-4 mt-4">
-              <h4 className="text-xs font-bold uppercase text-stone-400 mb-3 tracking-wider">📱 Redes Sociales</h4>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-stone-500 mb-1 block">Instagram (@usuario)</label>
-                  <input
-                    type="text"
-                    value={socialLinks.instagram}
-                    onChange={(e) => handleSocialLinkChange('instagram', e.target.value)}
-                    placeholder="@tu_instagram"
-                    className="w-full bg-stone-800 border border-stone-700 rounded-lg px-3 py-2 text-sm text-white placeholder-stone-500 focus:border-pink-500 focus:ring-1 focus:ring-pink-500 outline-none"
-                  />
+                <div className="mt-6">
+                  <label className="block text-xs font-bold text-stone-400 uppercase mb-3">Redes Sociales</label>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 bg-stone-800 p-2 rounded-lg border border-stone-700">
+                      <span className="text-xl">📸</span>
+                      <input
+                        type="text"
+                        value={socialLinks.instagram}
+                        onChange={(e) => handleSocialLinkChange('instagram', e.target.value)}
+                        placeholder="Usuario Instagram (ej: helados.ok)"
+                        className="bg-transparent w-full text-sm outline-none placeholder-stone-600"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 bg-stone-800 p-2 rounded-lg border border-stone-700">
+                      <span className="text-xl">💬</span>
+                      <input
+                        type="text"
+                        value={socialLinks.whatsapp}
+                        onChange={(e) => handleSocialLinkChange('whatsapp', e.target.value)}
+                        placeholder="WhatsApp (ej: 54911...)"
+                        className="bg-transparent w-full text-sm outline-none placeholder-stone-600"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs text-stone-500 mb-1 block">WhatsApp (número con código país)</label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-400 uppercase mb-3">Agregar Nuevo Sabor</label>
+                <div className="bg-stone-800 p-4 rounded-xl border border-stone-700 space-y-3">
                   <input
-                    type="text"
-                    value={socialLinks.whatsapp}
-                    onChange={(e) => handleSocialLinkChange('whatsapp', e.target.value)}
-                    placeholder="5491155146230"
-                    className="w-full bg-stone-800 border border-stone-700 rounded-lg px-3 py-2 text-sm text-white placeholder-stone-500 focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none"
+                    placeholder="Nombre del sabor (ej: Mousse de Limón)"
+                    className="w-full bg-stone-900 border-none rounded-lg p-2 text-sm focus:ring-1 focus:ring-stone-500"
+                    value={newFlavor.name || ''}
+                    onChange={e => setNewFlavor(curr => ({ ...curr, name: e.target.value }))}
                   />
+                  <input
+                    placeholder="Descripción corta (opcional)"
+                    className="w-full bg-stone-900 border-none rounded-lg p-2 text-sm focus:ring-1 focus:ring-stone-500"
+                    value={newFlavor.description || ''}
+                    onChange={e => setNewFlavor(curr => ({ ...curr, description: e.target.value }))}
+                  />
+                  <div className="flex gap-2">
+                    <select
+                      className="bg-stone-900 border-none rounded-lg p-2 text-sm flex-1"
+                      value={newFlavor.category}
+                      onChange={e => setNewFlavor(curr => ({ ...curr, category: e.target.value as any }))}
+                    >
+                      <option value="crema">Crema</option>
+                      <option value="chocolate">Chocolate</option>
+                      <option value="frutal">Frutal</option>
+                      <option value="especial">Especial</option>
+                    </select>
+                    <button
+                      onClick={handleAddFlavor}
+                      disabled={!newFlavor.name}
+                      className="bg-stone-100 text-stone-900 font-bold px-4 rounded-lg text-sm hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      + Agregar
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -278,10 +460,12 @@ const App: React.FC = () => {
         )}
 
         {/* FLAVOR SECTIONS */}
-        {renderFlavorSection('Cremas', '🍨', 'CLÁSICOS & DULCES', cremaFlavors)}
-        {renderFlavorSection('Chocolates', '🍫', 'INTENSOS & CREMOSOS', chocolateFlavors)}
-        {renderFlavorSection('Frutales', '🍓', 'FRESCOS & NATURALES', frutalFlavors)}
-        {renderFlavorSection('Especiales', '⭐', 'ÚNICOS & PREMIUM', especialFlavors)}
+        <div className={isSelecting ? "ring-4 ring-emerald-500/50 rounded-xl p-4 transition-all" : ""}>
+          {renderFlavorSection('Cremas', 'CLÁSICOS & DULCES', cremaFlavors)}
+          {renderFlavorSection('Chocolates', 'INTENSOS & CREMOSOS', chocolateFlavors)}
+          {renderFlavorSection('Frutales', 'FRESCOS & NATURALES', frutalFlavors)}
+          {renderFlavorSection('Especiales', 'ÚNICOS & PREMIUM', especialFlavors)}
+        </div>
 
         {/* FOOTER */}
         <Footer socialLinks={socialLinks} />
@@ -296,25 +480,26 @@ const App: React.FC = () => {
               onClick={async () => {
                 if (confirm('¿Seguro que querés descartar los cambios?')) {
                   const data = await loadStoreData();
-                  setStockStatus(prev => ({ ...prev, ...data.stock }));
+                  setStockStatus(Object.keys(data.stock).length > 0 ? data.stock : {});
+                  // Reload flavors as well to revert deletions/additions
+                  if (data.flavors) setFlavors(data.flavors);
+                  else setFlavors(INITIAL_FLAVORS);
+
                   if (data.prices) setCustomPrices(prev => ({ ...prev, ...data.prices }));
                   setStoreSettings(data.settings);
                   setSocialLinks(data.socialLinks || defaultSocialLinks);
                   setHasUnsavedChanges(false);
                 }
               }}
-              className="w-full py-3 rounded-full bg-stone-800/80 text-white font-medium text-sm shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/10 backdrop-blur-sm"
+              className="w-full py-3 rounded-full bg-stone-800/90 text-white font-medium text-sm shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/10 backdrop-blur-sm"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
               <span>Descartar Cambios</span>
             </button>
             <button
               onClick={saveAllChanges}
-              className="w-full py-4 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold text-lg shadow-[0_8px_25px_rgba(236,72,153,0.4)] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 border border-white/20"
+              className="w-full py-4 rounded-full bg-stone-100 text-stone-900 font-bold text-lg shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 border border-stone-200"
             >
-              <span>Aplicar Cambios</span>
+              <span>Guardar Todo</span>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>

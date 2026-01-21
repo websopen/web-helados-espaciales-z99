@@ -80,7 +80,7 @@ export async function checkAuth(): Promise<AuthCheckResponse> {
  */
 export function getTokenFromUrl(): string | null {
     const params = new URLSearchParams(window.location.search);
-    return params.get('admin_token');
+    return params.get('token');
 }
 
 /**
@@ -88,6 +88,6 @@ export function getTokenFromUrl(): string | null {
  */
 export function clearTokenFromUrl(): void {
     const url = new URL(window.location.href);
-    url.searchParams.delete('admin_token');
+    url.searchParams.delete('token');
     window.history.replaceState({}, '', url.toString());
 }

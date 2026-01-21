@@ -1,6 +1,35 @@
 /* Marti - Custom Styles */
 /* Tailwind CDN handles most styling */
 
+/* Custom Vene@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Venetian Mosaic Pattern (Monte Bianco) */
+.bg-venecitas {
+    background-color: #022c22;
+    background-image: url('/bg-mosaic.png');
+    background-size: 600px;
+    /* High density image: 600px width = ~12px tiles = ~7 rows in navbar */
+    background-repeat: repeat;
+    box-shadow: inset 0 0 200px rgba(0, 0, 0, 0.9);
+    /* Vignette */
+}
+
+/* Wood Slats Texture - REMOVED */
+
+/* Marble Texture */
+/* Marble Texture (Restored Image) */
+.bg-marble {
+    background-color: #fafaf9;
+    background-image: url('/bg-marble.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
+
 /* Custom Color Variables - Defaults */
 :root {
     --marti-primary: #78716C;

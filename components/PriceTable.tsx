@@ -1,101 +1,157 @@
-import React, { useState } from 'react';
-import { PRICES } from '../constants';
+import React from 'react';
 
 interface PriceTableProps {
-    prices: typeof PRICES;
+    prices: {
+        cuarto: number;
+        medio: number;
+        kilo: number;
+        cucurucho: number;
+        doble: number;
+    };
     isAdmin: boolean;
-    onPriceChange: (key: keyof typeof PRICES, value: number) => void;
+    onPriceChange: (key: any, value: number) => void;
+    onSelect: (key: string, price: number, label: string) => void;
 }
 
-export const PriceTable: React.FC<PriceTableProps> = ({
-    prices,
-    isAdmin,
-    onPriceChange
-}) => {
-    const [editingKey, setEditingKey] = useState<keyof typeof PRICES | null>(null);
-    const [editValue, setEditValue] = useState('');
-
-    const handleStartEdit = (key: keyof typeof PRICES) => {
-        setEditingKey(key);
-        setEditValue(prices[key].toString());
+export const PriceTable: React.FC<PriceTableProps> = ({ prices, isAdmin, onPriceChange, onSelect }) => {
+    const formatPrice = (price: number) => {
+        return new Intl.NumberFormat('es-AR', {
+            style: 'currency',
+            currency: 'ARS',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(price);
     };
 
-    const handleSaveEdit = () => {
-        if (editingKey && editValue) {
-            onPriceChange(editingKey, parseInt(editValue));
-        }
-        setEditingKey(null);
-        setEditValue('');
-    };
-
-    const priceRows = [
-        { key: 'cucurucho' as const, label: '🍦 Cucurucho', sublabel: '1 sabor' },
-        { key: 'doble' as const, label: '🍦 Cucurucho Doble', sublabel: '2 sabores' },
-        { key: 'cuarto' as const, label: '🥡 1/4 Kilo', sublabel: '250g' },
-        { key: 'medio' as const, label: '🥡 1/2 Kilo', sublabel: '500g' },
-        { key: 'kilo' as const, label: '🥡 1 Kilo', sublabel: '1000g' },
+    // Map flat price object to sections for display
+    const alPasoItems = [
+        { key: 'cucurucho', label: 'Cucurucho', price: prices.cucurucho },
+        { key: 'doble', label: 'Cucurucho Doble', price: prices.doble },
     ];
 
+    const paraLlevarItems = [
+        { key: 'cuarto', label: '1/4 Kilo', price: prices.cuarto },
+        { key: 'medio', label: '1/2 Kilo', price: prices.medio },
+        { key: 'kilo', label: '1 Kilo', price: prices.kilo },
+    ];
+
+    // The provided instruction implies a refactoring of the 'prices' prop structure
+    // and the 'onPriceChange' handler.
+    // To make the provided code snippet syntactically correct and functional,
+    // I will adapt the existing 'prices' and 'onPriceChange' to fit the new structure.
+    // This means creating a temporary 'prices' object with 'alPaso' and 'paraLlevar' arrays
+    // and a compatible 'updatePrice' function.
+
+    const newPricesStructure = {
+        alPaso: alPasoItems,
+        paraLlevar: paraLlevarItems,
+    };
+
+    const updatePrice = (category: 'alPaso' | 'paraLlevar', index: number, value: number) => {
+        const item = newPricesStructure[category][index];
+        if (item) {
+            onPriceChange(item.key, value);
+        }
+    };
+
     return (
-        <div className="mb-8">
-            {/* Header */}
-            <div className="mb-4 flex items-center gap-3 px-1">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-pink-400 to-rose-500 shadow-lg flex items-center justify-center text-xl">
-                    🍨
-                </div>
-                <div className="flex flex-col">
-                    <h1 className="font-serif font-bold text-2xl text-stone-800 dark:text-stone-100 leading-none">Precios</h1>
-                    <span className="text-xs text-stone-400 font-medium tracking-wide">CARTA DE HELADOS</span>
-                </div>
+        <div className="p-4 rounded-2xl bg-white/60 backdrop-blur-md border border-white/40 shadow-xl max-w-5xl mx-auto my-6">
+            <div className="flex items-center justify-center mb-6">
+                <h2 className="text-xl font-bold text-stone-800 font-serif tracking-widest border-b-2 border-amber-900/10 pb-1">
+                    PRECIOS & TAMAÑOS
+                </h2>
             </div>
 
-            {/* Price Table */}
-            <div className="bg-white/80 dark:bg-stone-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/60 dark:border-stone-700 overflow-hidden">
-                {priceRows.map((row, index) => (
-                    <div
-                        key={row.key}
-                        className={`flex items-center justify-between px-4 py-3 ${index !== priceRows.length - 1 ? 'border-b border-stone-100 dark:border-stone-700' : ''
-                            }`}
-                    >
-                        <div className="flex flex-col">
-                            <span className="font-medium text-stone-800 dark:text-stone-100">{row.label}</span>
-                            <span className="text-xs text-stone-400">{row.sublabel}</span>
-                        </div>
-
-                        {isAdmin && editingKey === row.key ? (
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="number"
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    className="w-20 px-2 py-1 text-right rounded border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-800 dark:text-white"
-                                    autoFocus
-                                />
-                                <button
-                                    onClick={handleSaveEdit}
-                                    className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center"
-                                >
-                                    ✓
-                                </button>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => isAdmin && handleStartEdit(row.key)}
-                                className={`text-lg font-bold text-pink-600 dark:text-pink-400 ${isAdmin ? 'hover:bg-pink-100 dark:hover:bg-pink-900/30 px-3 py-1 rounded-lg transition-colors cursor-pointer' : ''
-                                    }`}
-                                disabled={!isAdmin}
-                            >
-                                ${prices[row.key].toLocaleString()}
-                            </button>
-                        )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Al Paso Column */}
+                <div>
+                    <h3 className="text-sm font-bold text-stone-500 uppercase tracking-widest mb-4 text-center">Al Paso</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        {newPricesStructure.alPaso.map((item, index) => (
+                            <PriceCard
+                                key={`aso-${index}`}
+                                {...item}
+                                isAdmin={isAdmin}
+                                onChange={(price) => updatePrice('alPaso', index, price)}
+                                onSelect={() => onSelect(item.key, item.price, item.label)}
+                                formatPrice={formatPrice}
+                                highlight={false}
+                            />
+                        ))}
                     </div>
-                ))}
-            </div>
+                </div>
 
-            {/* Disclaimer */}
-            <p className="text-center text-xs text-stone-400 mt-3 px-4">
-                Los precios pueden variar. Consultá disponibilidad de sabores.
-            </p>
+                {/* Para Llevar Column */}
+                <div>
+                    <h3 className="text-sm font-bold text-stone-500 uppercase tracking-widest mb-4 text-center">Para Llevar</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {newPricesStructure.paraLlevar.map((item, index) => (
+                            <PriceCard
+                                key={`llevar-${index}`}
+                                {...item}
+                                isAdmin={isAdmin}
+                                onChange={(price) => updatePrice('paraLlevar', index, price)}
+                                onSelect={() => onSelect(item.key, item.price, item.label)}
+                                formatPrice={formatPrice}
+                                highlight={true}
+                            />
+                        ))}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
+
+interface PriceCardProps {
+    label: string;
+    price: number;
+    isAdmin: boolean;
+    onChange: (val: number) => void;
+    onSelect?: () => void;
+    formatPrice: (val: number) => string;
+    highlight?: boolean;
+}
+
+const PriceCard: React.FC<PriceCardProps> = ({ label, price, isAdmin, onChange, onSelect, formatPrice, highlight }) => (
+    <button
+        onClick={isAdmin ? undefined : onSelect}
+        disabled={isAdmin}
+        className={`relative w-full text-left p-3 rounded-xl border transition-all duration-300 overflow-hidden backdrop-blur-md flex flex-row items-center gap-3
+        ${highlight
+                ? 'bg-amber-100/90 border-amber-500/50 shadow-amber-900/10 scale-100 z-10'
+                : 'bg-white/80 border-white/40 shadow-sm hover:shadow-md'
+            }
+        ${!isAdmin && 'hover:scale-[1.02] active:scale-[0.98] cursor-pointer ring-amber-500 hover:ring-2'} group
+        `}
+    >
+        {/* Product Image */}
+        <div className="w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-white border border-stone-100 shadow-inner">
+            <img
+                src="/images/pot-mixed.png"
+                alt="Helado"
+                className="w-full h-full object-cover mix-blend-multiply"
+            />
+        </div>
+
+        {/* Content */}
+        <div className="relative z-10 flex flex-col items-start flex-1 min-w-0">
+            <span className="text-[10px] font-bold uppercase text-stone-500 tracking-wider">
+                {label}
+            </span>
+
+            {isAdmin ? (
+                <input
+                    type="number"
+                    value={price || 0}
+                    onChange={(e) => onChange(parseInt(e.target.value) || 0)}
+                    className="w-full text-left font-bold text-xl bg-transparent text-stone-800 focus:outline-none border-b border-stone-400/50"
+                />
+            ) : (
+                <span className={`font-bold text-xl leading-none mt-0.5 ${highlight ? 'text-amber-700' : 'text-stone-800'}`}>
+                    {formatPrice(price || 0)}
+                </span>
+            )}
+        </div>
+    </button>
+);

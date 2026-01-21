@@ -3,6 +3,8 @@
  * Simplified for ice cream menu (no ordering)
  */
 
+import { Product } from '../types';
+
 // API URL - using worker directly, will be updated when custom domain is set
 const API_BASE = 'https://helados-api.nicolasqw31.workers.dev/api';
 
@@ -28,6 +30,7 @@ export interface StoreData {
     prices: Prices;                   // Prices by quantity
     settings: StoreSettings;
     socialLinks: SocialLinks;
+    flavors?: Product[];             // Dynamic list of flavors
 }
 
 interface SaveResponse {
@@ -51,7 +54,7 @@ export const defaultPrices: Prices = {
 };
 
 /**
- * Load all store data (stock, prices, settings)
+ * Load all store data (stock, prices, settings, flavors)
  */
 export async function loadStoreData(): Promise<StoreData> {
     try {
@@ -73,6 +76,7 @@ export async function loadStoreData(): Promise<StoreData> {
             prices: defaultPrices,
             settings: { isOpen: true },
             socialLinks: defaultSocialLinks,
+            flavors: [], // Default to empty if failed, App will fall back to constants
         };
     }
 }
