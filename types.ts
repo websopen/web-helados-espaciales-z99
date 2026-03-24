@@ -7,6 +7,8 @@ export interface Product {
   inStock?: boolean;
   price?: number;
   gradient?: string;
+  imageUrl?: string; // Custom image URL
+  alert?: string; // Alert message e.g. "Sabor raro", "Nuevo!", "Edición limitada"
 }
 
 export interface Store {

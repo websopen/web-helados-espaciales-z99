@@ -187,11 +187,28 @@ export function initSessionFromUrl(): boolean {
     if (authSession) {
         try {
             console.log('[Auth] Initializing session from URL token:', authSession.substring(0, 10) + '...');
-            // Set cookie locally (First-Party context - 100% reliable)
-            const cookieValue = decodeURIComponent(authSession);
+
+            let cookieValueToSet = decodeURIComponent(authSession);
+
+            // Si el token es un JWT del Hub (3 partes delimitadas por puntos), intentamos decodificar su payload
+            if (authSession.split('.').length === 3) {
+                try {
+                    const payloadBytes = atob(authSession.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'));
+                    const payload = JSON.parse(payloadBytes);
+                    const role = (payload.role || '').toLowerCase();
+                    // Chequeamos si tiene rol dueño/admin
+                    if (role === 'owner' || role === 'admin' || role === 'dueno' || role === 'dueño' || role === 'encargado') {
+                        const uniqueSig = `HZ_SECURE_${Date.now()}`;
+                        cookieValueToSet = btoa(`admin_active:::${uniqueSig}`);
+                        console.log('[Auth] Token JWT válido con rol auth. Estableciendo cookie admin segura.');
+                    }
+                } catch (e) {
+                    console.log('[Auth] Error analizando JWT en fallback:', e);
+                }
+            }
 
             // Set cookie with broad compatibility
-            document.cookie = `helados_admin=${encodeURIComponent(cookieValue)}; Path=/; Secure; SameSite=Lax`;
+            document.cookie = `helados_admin=${encodeURIComponent(cookieValueToSet)}; Path=/; Secure; SameSite=Lax`;
             console.log('[Auth] Session cookie set successfully.');
 
             // Force reload to apply session

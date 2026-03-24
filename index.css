@@ -16,6 +16,14 @@
     /* Vignette */
 }
 
+/* Text stroke for visibility on busy backgrounds */
+.text-stroke {
+    -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.6);
+    text-shadow:
+        2px 2px 4px rgba(0, 0, 0, 0.5),
+        -1px -1px 2px rgba(0, 0, 0, 0.3);
+}
+
 /* Wood Slats Texture - REMOVED */
 
 /* Marble Texture */
@@ -106,4 +114,131 @@ html {
 /* Remove focus outline for mouse users */
 :focus:not(:focus-visible) {
     outline: none;
+}
+
+/* Marquee animation for promo banner */
+@keyframes marquee {
+    0% {
+        transform: translateX(0%);
+    }
+
+    100% {
+        transform: translateX(-50%);
+    }
+}
+
+.animate-marquee {
+    animation: marquee 25s linear infinite;
+}
+
+/* Bounce in animation */
+@keyframes bounce-in {
+    0% {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+
+    50% {
+        transform: scale(1.02);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.animate-bounce-in {
+    animation: bounce-in 0.3s ease-out;
+}
+
+/* Slide in left animation for sidebar */
+@keyframes slide-in-left {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(0);
+    }
+}
+
+.animate-slide-in-left {
+    animation: slide-in-left 0.3s ease-out;
+}
+
+/* Stars/Night Sky animation - stars that rise upward */
+.stars-container {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+    border-radius: 12px 12px 0 0;
+}
+
+@keyframes animateStars {
+    from {
+        transform: translateY(0px);
+    }
+
+    to {
+        transform: translateY(-120px);
+    }
+}
+
+.stars-container::before,
+.stars-container::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+        radial-gradient(1px 1px at 20px 30px, #eee, transparent),
+        radial-gradient(1px 1px at 80px 70px, #fff, transparent),
+        radial-gradient(1px 1px at 150px 100px, #eee, transparent),
+        radial-gradient(2px 2px at 250px 80px, #fff, transparent),
+        radial-gradient(1px 1px at 200px 20px, #ddd, transparent);
+    animation: animateStars 15s linear infinite;
+}
+
+.stars-container::after {
+    background-image:
+        radial-gradient(1px 1px at 50px 10px, #fff, transparent),
+        radial-gradient(1px 1px at 100px 40px, #ddd, transparent),
+        radial-gradient(2px 2px at 200px 60px, #fff, transparent);
+    animation-duration: 10s;
+}
+
+/* Fade in animation */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+}
+
+/* Slide down animation for top notch */
+@keyframes slide-down {
+    0% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.animate-slide-down {
+    animation: slide-down 0.3s ease-out;
 }

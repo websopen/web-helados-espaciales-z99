@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Cart, OrderItem } from '../types';
 
 interface CartModalProps {
@@ -6,9 +6,17 @@ interface CartModalProps {
     onClose: () => void;
     cart: Cart;
     onRemoveItem: (id: string) => void;
+    whatsappNumber?: string;
 }
 
-export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, onRemoveItem }) => {
+type DeliveryMethod = 'pickup' | 'delivery';
+type PaymentMethod = 'cash' | 'transfer' | 'card';
+
+export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, onRemoveItem, whatsappNumber }) => {
+    const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('pickup');
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+    const [comments, setComments] = useState('');
+
     if (!isOpen) return null;
 
     const formatPrice = (price: number) => {
@@ -20,11 +28,21 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, onR
         }).format(price);
     };
 
+    const deliveryLabels: Record<DeliveryMethod, string> = {
+        pickup: '🛍️ Retiro en local',
+        delivery: '🛵 Envío a domicilio'
+    };
+
+    const paymentLabels: Record<PaymentMethod, string> = {
+        cash: '💵 Efectivo',
+        transfer: '📱 Transferencia',
+        card: '💳 Tarjeta'
+    };
+
     const handleCheckout = () => {
-        // Construct WhatsApp Message
         let message = `*¡Hola! Quiero realizar un pedido:*%0A%0A`;
 
-        cart.items.forEach((item, index) => {
+        cart.items.forEach((item) => {
             message += `*${item.productName}* (${formatPrice(item.price)})%0A`;
             item.flavors.forEach(flavor => {
                 message += `• ${flavor}%0A`;
@@ -32,17 +50,26 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, onR
             message += `%0A`;
         });
 
-        message += `*Total: ${formatPrice(cart.total)}*`;
+        message += `--------------------%0A`;
+        message += `*📦 Entrega:* ${deliveryLabels[deliveryMethod]}%0A`;
+        message += `*💰 Pago:* ${paymentLabels[paymentMethod]}%0A`;
 
-        // Function to open WhatsApp
-        window.open(`https://wa.me/?text=${message}`, '_blank');
+        if (comments.trim()) {
+            message += `*📝 Comentarios:* ${comments}%0A`;
+        }
+
+        message += `--------------------%0A`;
+        message += `*TOTAL: ${formatPrice(cart.total)}*`;
+
+        const phone = whatsappNumber || '';
+        window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
     };
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
-            <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-bounce-in">
+            <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-bounce-in">
                 {/* Header */}
                 <div className="bg-stone-50 p-4 border-b border-stone-100 flex justify-between items-center">
                     <h2 className="font-serif font-bold text-xl text-stone-800">Tu Pedido</h2>
@@ -64,32 +91,105 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, onR
                             </button>
                         </div>
                     ) : (
-                        cart.items.map(item => (
-                            <div key={item.id} className="bg-stone-50 rounded-xl p-3 border border-stone-100 relative group">
-                                <div className="flex justify-between items-start mb-2">
-                                    <h3 className="font-bold text-stone-800">{item.productName}</h3>
-                                    <span className="font-bold text-stone-900">{formatPrice(item.price)}</span>
-                                </div>
-                                <ul className="text-sm text-stone-600 space-y-1 mb-1">
-                                    {item.flavors.map((flavor, i) => (
-                                        <li key={i} className="flex items-center gap-2">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                            {flavor}
-                                        </li>
-                                    ))}
-                                </ul>
+                        <>
+                            {cart.items.map(item => (
+                                <div key={item.id} className="bg-stone-50 rounded-xl p-3 border border-stone-100 relative group">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h3 className="font-bold text-stone-800">{item.productName}</h3>
+                                        <span className="font-bold text-stone-900">{formatPrice(item.price)}</span>
+                                    </div>
+                                    <ul className="text-sm text-stone-600 space-y-1 mb-1">
+                                        {item.flavors.map((flavor, i) => (
+                                            <li key={i} className="flex items-center gap-2">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                                {flavor}
+                                            </li>
+                                        ))}
+                                    </ul>
 
-                                <button
-                                    onClick={() => onRemoveItem(item.id)}
-                                    className="absolute top-2 right-2 p-1.5 bg-white text-red-500 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
-                                    title="Eliminar item"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                </button>
+                                    <button
+                                        onClick={() => onRemoveItem(item.id)}
+                                        className="absolute top-2 right-2 p-1.5 bg-white text-red-500 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
+                                        title="Eliminar item"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))}
+
+                            {/* Delivery Method */}
+                            <div className="border-t border-stone-200 pt-4">
+                                <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">📦 Método de entrega</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => setDeliveryMethod('pickup')}
+                                        className={`py-3 px-4 rounded-xl text-sm font-medium transition-all border ${deliveryMethod === 'pickup'
+                                            ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                            : 'bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300'
+                                            }`}
+                                    >
+                                        🛍️ Retiro
+                                    </button>
+                                    <button
+                                        onClick={() => setDeliveryMethod('delivery')}
+                                        className={`py-3 px-4 rounded-xl text-sm font-medium transition-all border ${deliveryMethod === 'delivery'
+                                            ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                            : 'bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300'
+                                            }`}
+                                    >
+                                        🛵 Envío
+                                    </button>
+                                </div>
                             </div>
-                        ))
+
+                            {/* Payment Method */}
+                            <div className="border-t border-stone-200 pt-4">
+                                <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">💰 Método de pago</h4>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        onClick={() => setPaymentMethod('cash')}
+                                        className={`py-2.5 px-3 rounded-xl text-xs font-medium transition-all border ${paymentMethod === 'cash'
+                                            ? 'bg-green-50 border-green-300 text-green-700'
+                                            : 'bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300'
+                                            }`}
+                                    >
+                                        💵 Efectivo
+                                    </button>
+                                    <button
+                                        onClick={() => setPaymentMethod('transfer')}
+                                        className={`py-2.5 px-3 rounded-xl text-xs font-medium transition-all border ${paymentMethod === 'transfer'
+                                            ? 'bg-purple-50 border-purple-300 text-purple-700'
+                                            : 'bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300'
+                                            }`}
+                                    >
+                                        📱 Transfer
+                                    </button>
+                                    <button
+                                        onClick={() => setPaymentMethod('card')}
+                                        className={`py-2.5 px-3 rounded-xl text-xs font-medium transition-all border ${paymentMethod === 'card'
+                                            ? 'bg-yellow-50 border-yellow-300 text-yellow-700'
+                                            : 'bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300'
+                                            }`}
+                                    >
+                                        💳 Tarjeta
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Comments */}
+                            <div className="border-t border-stone-200 pt-4">
+                                <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">📝 Comentarios (opcional)</h4>
+                                <textarea
+                                    value={comments}
+                                    onChange={(e) => setComments(e.target.value)}
+                                    placeholder="Ej: Sin chocolate, extra dulce de leche..."
+                                    className="w-full border border-stone-200 rounded-xl p-3 text-sm placeholder-stone-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 outline-none resize-none"
+                                    rows={2}
+                                />
+                            </div>
+                        </>
                     )}
                 </div>
 

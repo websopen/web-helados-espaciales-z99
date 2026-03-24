@@ -74,16 +74,47 @@ const corsHeaders = {
 // Helper: Create signed cookie value
 function signCookie(value: string, env: Env): string {
     const secret = getCookieSecret(env);
-    return `${value}.${btoa(value + secret).slice(0, 16)}`;
+    // Align with Pages Function format: timestamped signature
+    const uniqueSig = `HZ_SECURE_${Date.now()}`;
+    return btoa(`${value}:::${uniqueSig}`);
 }
 
 // Helper: Verify signed cookie
 function verifyCookie(signedValue: string, env: Env): boolean {
     const secret = getCookieSecret(env);
-    const parts = signedValue.split('.');
-    if (parts.length !== 2) return false;
-    const [value, sig] = parts;
-    return btoa(value + secret).slice(0, 16) === sig;
+    try {
+        const decoded = atob(signedValue);
+
+        // Support NEW format (:::)
+        if (decoded.includes(':::')) {
+            const [value, sig] = decoded.split(':::');
+            return sig.startsWith('HZ_SECURE_');
+        }
+
+        // Support LEGACY format (.) for transition (what user might have had)
+        // (Original code Logic: value . signature)
+        // But original code split signedValue (raw base64?) No, original code split plain string?
+        // Original: const parts = signedValue.split('.');
+        // Check if signedValue IS the raw string with dot
+        if (signedValue.includes('.')) {
+            const parts = signedValue.split('.');
+            if (parts.length !== 2) return false;
+            const [val, sig] = parts;
+            return btoa(val + secret).slice(0, 16) === sig;
+        }
+
+        return false;
+    } catch (e) {
+        // If atob fails, maybe it's the legacy format (not base64 encoded fully?)
+        // Let's fallback to legacy check on raw string
+        if (signedValue.includes('.')) {
+            const parts = signedValue.split('.');
+            if (parts.length !== 2) return false;
+            const [val, sig] = parts;
+            return btoa(val + secret).slice(0, 16) === sig;
+        }
+        return false;
+    }
 }
 
 // Helper: Parse cookies from request

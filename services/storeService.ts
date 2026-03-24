@@ -10,11 +10,30 @@ const API_BASE = 'https://helados-api.nicolasqw31.workers.dev/api';
 
 interface StoreSettings {
     isOpen: boolean;
+    deliveryAvailable: boolean;
+    pickupAvailable: boolean;
 }
 
 export interface SocialLinks {
     instagram: string;
     whatsapp: string;
+    tiktok?: string;
+    facebook?: string;
+    phone?: string;
+}
+
+export interface DeliveryConfig {
+    enabled: boolean;
+    maxDistanceKm: number;
+    baseCost: number;
+    costPerKm: number;
+    estimatedMinutes: number;
+}
+
+export interface BusinessInfo {
+    cuit: string;
+    businessName: string;
+    complaintsBookUrl?: string;
 }
 
 export interface Prices {
@@ -26,11 +45,36 @@ export interface Prices {
 }
 
 export interface StoreData {
-    stock: Record<string, boolean>;  // Flavor availability
-    prices: Prices;                   // Prices by quantity
+    stock: Record<string, boolean | number>;  // Flavor availability (legacy: boolean, new: number)
+    prices: Prices;                   // Prices by quantity (legacy)
     settings: StoreSettings;
     socialLinks: SocialLinks;
     flavors?: Product[];             // Dynamic list of flavors
+    priceProducts?: PriceProduct[];  // Dynamic price menu products
+    deliveryConfig?: DeliveryConfig;
+    businessInfo?: BusinessInfo;
+    // Sidebar config states
+    promoBanner?: {
+        enabled: boolean;
+        text: string;
+        gradient: 'warm' | 'cool' | 'rainbow';
+    };
+    storeHours?: Record<string, { open: string; close: string; closed?: boolean }>;
+    storeLocation?: {
+        address: string;
+        lat?: number;
+        lng?: number;
+        googleMapsUrl?: string;
+    };
+}
+
+// Price product interface (imported from PriceTable but defined here for service)
+export interface PriceProduct {
+    id: string;
+    label: string;
+    price: number;
+    category: 'alPaso' | 'paraLlevar';
+    maxFlavors: number;
 }
 
 interface SaveResponse {
@@ -42,7 +86,24 @@ interface SaveResponse {
 // Default values
 export const defaultSocialLinks: SocialLinks = {
     instagram: '',
-    whatsapp: ''
+    whatsapp: '',
+    tiktok: '',
+    facebook: '',
+    phone: ''
+};
+
+export const defaultDeliveryConfig: DeliveryConfig = {
+    enabled: true,
+    maxDistanceKm: 5,
+    baseCost: 500,
+    costPerKm: 100,
+    estimatedMinutes: 30
+};
+
+export const defaultBusinessInfo: BusinessInfo = {
+    cuit: '',
+    businessName: 'Monte Bianco',
+    complaintsBookUrl: ''
 };
 
 export const defaultPrices: Prices = {
@@ -74,7 +135,7 @@ export async function loadStoreData(): Promise<StoreData> {
         return {
             stock: {},
             prices: defaultPrices,
-            settings: { isOpen: true },
+            settings: { isOpen: true, deliveryAvailable: true, pickupAvailable: true },
             socialLinks: defaultSocialLinks,
             flavors: [], // Default to empty if failed, App will fall back to constants
         };
