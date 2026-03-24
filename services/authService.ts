@@ -3,7 +3,9 @@
  */
 
 // API URL - using worker directly
-const API_BASE = 'https://helados-api.nicolasqw31.workers.dev/api';
+const API_BASE = window.location.hostname === 'localhost'
+    ? 'http://localhost:8787/api'
+    : 'https://helados-api.nicolasqw31.workers.dev/api';
 
 interface TokenValidationResponse {
     valid?: boolean;
@@ -93,6 +95,46 @@ export function clearTokenFromUrl(): void {
 }
 
 /**
+ * Initialize session from OTK (One-Time Token)
+ */
+export async function initSessionFromOtk(): Promise<boolean> {
+    const params = new URLSearchParams(window.location.search);
+    const otk = params.get('otk');
+
+    if (otk) {
+        try {
+            console.log('[Auth] 🔑 Found OTK in URL, attempting login...');
+
+            const response = await fetch(`${API_BASE}/auth/login-otk`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ otk }),
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                console.log('[Auth] ✅ OTK login successful. Reloading...');
+
+                // Clean URL before reload
+                const url = new URL(window.location.href);
+                url.searchParams.delete('otk');
+                window.history.replaceState({}, '', url.toString());
+
+                window.location.reload();
+                return true;
+            } else {
+                console.error('[Auth] ❌ OTK login failed');
+                return false;
+            }
+        } catch (e) {
+            console.error('[Auth] ❌ Error in initSessionFromOtk:', e);
+            return false;
+        }
+    }
+    return false;
+}
+
+/**
  * Check if user has admin access from Hub cookie
  * The Hub sets a cookie 'helados_admin' with value containing 'admin_active' for admin users
  */
@@ -123,6 +165,7 @@ export function checkHubCookie(): boolean {
         return false;
     } catch (error) {
         console.error('[Auth Debug] Error checking Hub cookie:', error);
+        return false;
     }
 }
 
