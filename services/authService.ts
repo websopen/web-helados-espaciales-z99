@@ -91,3 +91,74 @@ export function clearTokenFromUrl(): void {
     url.searchParams.delete('token');
     window.history.replaceState({}, '', url.toString());
 }
+
+/**
+ * Check if user has admin access from Hub cookie
+ * The Hub sets a cookie 'helados_admin' with value containing 'admin_active' for admin users
+ */
+export function checkHubCookie(): boolean {
+    try {
+        console.log('[Auth Debug] Checking cookies:', document.cookie);
+        // Note: HttpOnly cookies can't be read from JS, but our Pages Function 
+        // sets a non-HttpOnly version for frontend detection
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'helados_admin' && value) {
+                console.log('[Auth Debug] Found helados_admin cookie:', value);
+                // Cookie is base64 encoded, decode and check for admin_active
+                try {
+                    // Decode URI component (server uses encodeURIComponent)
+                    const decodedValue = decodeURIComponent(value);
+                    const decoded = atob(decodedValue);
+                    console.log('[Auth Debug] Decoded value:', decoded);
+                    return decoded.includes('admin_active');
+                } catch {
+                    console.log('[Auth Debug] Raw value check (fallback)');
+                    return value.includes('admin');
+                }
+            }
+        }
+        console.log('[Auth Debug] No helados_admin cookie found');
+        return false;
+    } catch (error) {
+        console.error('[Auth Debug] Error checking Hub cookie:', error);
+    }
+}
+
+/**
+ * Initialize session from URL param (Token-in-URL strategy)
+ * Call this on App mount to capture tokens passed from Hub
+ */
+export function initSessionFromUrl(): boolean {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'));
+
+    // Support all possible param names from Hub/VPS
+    const authSession = searchParams.get('auth_session') ||
+        searchParams.get('token') ||
+        searchParams.get('hub_token') ||
+        hashParams.get('hub_token') ||
+        hashParams.get('token');
+
+    if (authSession) {
+        try {
+            console.log('[Auth] Initializing session from URL token:', authSession.substring(0, 10) + '...');
+            // Set cookie locally (First-Party context - 100% reliable)
+            const cookieValue = decodeURIComponent(authSession);
+
+            // Set cookie with broad compatibility
+            document.cookie = `helados_admin=${encodeURIComponent(cookieValue)}; Path=/; Secure; SameSite=Lax`;
+            console.log('[Auth] Session cookie set successfully.');
+
+            // Force reload to apply session
+            console.log('[Auth] Force reloading to apply session...');
+            window.location.reload();
+            return true;
+        } catch (e) {
+            console.error('[Auth] Error initializing session:', e);
+            return false;
+        }
+    }
+    return false;
+}
