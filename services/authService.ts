@@ -211,8 +211,18 @@ export function initSessionFromUrl(): boolean {
             document.cookie = `helados_admin=${encodeURIComponent(cookieValueToSet)}; Path=/; Secure; SameSite=Lax`;
             console.log('[Auth] Session cookie set successfully.');
 
-            // Force reload to apply session
-            console.log('[Auth] Force reloading to apply session...');
+            // Force reload to apply session but CLEAN URL FIRST to prevent infinite loop
+            console.log('[Auth] Cleaning URL and reloading to apply session...');
+            const finalUrl = new URL(window.location.href);
+            finalUrl.searchParams.delete('auth_session');
+            finalUrl.searchParams.delete('token');
+            finalUrl.searchParams.delete('hub_token');
+            // Clear hash too just in case
+            if (finalUrl.hash.includes('hub_token') || finalUrl.hash.includes('token')) {
+                finalUrl.hash = '';
+            }
+            window.history.replaceState({}, '', finalUrl.toString());
+
             window.location.reload();
             return true;
         } catch (e) {
