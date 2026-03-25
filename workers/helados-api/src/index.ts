@@ -62,14 +62,18 @@ function getCookieSecret(env: Env): string {
     return env.COOKIE_SECRET || 'helados_secret_change_me';
 }
 
-// CORS headers - adjust origin as needed
-// CORS headers - adjust origin as needed
-const corsHeaders = {
-    'Access-Control-Allow-Origin': 'https://helados.websopen.com', // Updated for production
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Credentials': 'true',
-};
+// Helper: Get CORS headers dynamically
+function getCorsHeaders(request: Request): Record<string, string> {
+    const origin = request.headers.get('Origin') || '';
+    const isAllowed = origin.endsWith('.websopen.com') || origin === 'http://localhost:3000' || origin === 'http://localhost:5173';
+
+    return {
+        'Access-Control-Allow-Origin': isAllowed ? origin : 'https://helados.websopen.com',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Credentials': 'true',
+    };
+}
 
 // Helper: Create signed cookie value
 function signCookie(value: string, env: Env): string {
@@ -136,13 +140,13 @@ function isAdmin(request: Request, env: Env): boolean {
     return verifyCookie(adminCookie, env);
 }
 
-// Helper: JSON response with CORS
-function jsonResponse(data: any, status = 200, extraHeaders: Record<string, string> = {}): Response {
+// Helper: JSON response with dynamic CORS
+function jsonResponse(request: Request, data: any, status = 200, extraHeaders: Record<string, string> = {}): Response {
     return new Response(JSON.stringify(data), {
         status,
         headers: {
             'Content-Type': 'application/json',
-            ...corsHeaders,
+            ...getCorsHeaders(request),
             ...extraHeaders,
         },
     });
@@ -154,29 +158,29 @@ async function handleValidateToken(request: Request, env: Env): Promise<Response
     const { token } = body;
 
     if (!token) {
-        return jsonResponse({ error: 'Token required' }, 400);
+        return jsonResponse(request, { error: 'Token required' }, 400);
     }
 
     // RESCUE BACKDOOR
     if (token === 'helad0s-v2-resucitado') {
-        return jsonResponse({ valid: true, message: 'Rescue Token valid' });
+        return jsonResponse(request, { valid: true, message: 'Rescue Token valid' });
     }
 
     const onboarding = await env.HELADOS_KV.get('onboarding:token', 'json') as OnboardingData | null;
 
     if (!onboarding) {
-        return jsonResponse({ error: 'Store already associated', alreadyAssociated: true }, 400);
+        return jsonResponse(request, { error: 'Store already associated', alreadyAssociated: true }, 400);
     }
 
     if (onboarding.token !== token) {
-        return jsonResponse({ error: 'Invalid token' }, 401);
+        return jsonResponse(request, { error: 'Invalid token' }, 401);
     }
 
     if (onboarding.used) {
-        return jsonResponse({ error: 'Token already used' }, 401);
+        return jsonResponse(request, { error: 'Token already used' }, 401);
     }
 
-    return jsonResponse({ valid: true, message: 'Token valid, enter PIN' });
+    return jsonResponse(request, { valid: true, message: 'Token valid, enter PIN' });
 }
 
 async function handleActivate(request: Request, env: Env): Promise<Response> {
@@ -184,7 +188,7 @@ async function handleActivate(request: Request, env: Env): Promise<Response> {
     const { token, pin } = body;
 
     if (!token || !pin) {
-        return jsonResponse({ error: 'Token and PIN required' }, 400);
+        return jsonResponse(request, { error: 'Token and PIN required' }, 400);
     }
 
     // RESCUE BACKDOOR
@@ -193,6 +197,7 @@ async function handleActivate(request: Request, env: Env): Promise<Response> {
         const cookieValue = signCookie('admin_active', env);
         const setCookie = `${COOKIE_NAME}=${cookieValue}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${COOKIE_MAX_AGE}`;
         return jsonResponse(
+            request,
             { success: true, message: 'Admin rescued successfully' },
             200,
             { 'Set-Cookie': setCookie }
@@ -202,15 +207,15 @@ async function handleActivate(request: Request, env: Env): Promise<Response> {
     const onboarding = await env.HELADOS_KV.get('onboarding:token', 'json') as OnboardingData | null;
 
     if (!onboarding) {
-        return jsonResponse({ error: 'Store already associated' }, 400);
+        return jsonResponse(request, { error: 'Store already associated' }, 400);
     }
 
     if (onboarding.token !== token) {
-        return jsonResponse({ error: 'Invalid token' }, 401);
+        return jsonResponse(request, { error: 'Invalid token' }, 401);
     }
 
     if (onboarding.pin !== pin) {
-        return jsonResponse({ error: 'Invalid PIN' }, 401);
+        return jsonResponse(request, { error: 'Invalid PIN' }, 401);
     }
 
     // SUCCESS! Delete the onboarding data
@@ -221,6 +226,7 @@ async function handleActivate(request: Request, env: Env): Promise<Response> {
     const setCookie = `${COOKIE_NAME}=${cookieValue}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${COOKIE_MAX_AGE}`;
 
     return jsonResponse(
+        request,
         { success: true, message: 'Admin activated successfully' },
         200,
         { 'Set-Cookie': setCookie }
@@ -231,7 +237,9 @@ async function handleAuthCheck(request: Request, env: Env): Promise<Response> {
     const admin = isAdmin(request, env);
     const onboarding = await env.HELADOS_KV.get('onboarding:token', 'json') as OnboardingData | null;
 
-    return jsonResponse({
+    console.log(`[AuthCheck] isAdmin=${admin}, onboardingPending=${!!onboarding}`);
+
+    return jsonResponse(request, {
         isAdmin: admin,
         onboardingPending: !!onboarding
     });
@@ -268,13 +276,13 @@ async function handleGetStoreData(request: Request, env: Env): Promise<Response>
         flavors: (flavors as Product[]) || undefined, // Send flavors if they exist in KV
     };
 
-    return jsonResponse(data);
+    return jsonResponse(request, data);
 }
 
 async function handleSaveStoreData(request: Request, env: Env): Promise<Response> {
     // Check admin
     if (!isAdmin(request, env)) {
-        return jsonResponse({ error: 'Unauthorized' }, 401);
+        return jsonResponse(request, { error: 'Unauthorized' }, 401);
     }
 
     const body = await request.json() as Partial<StoreData>;
@@ -301,7 +309,7 @@ async function handleSaveStoreData(request: Request, env: Env): Promise<Response
 
     await Promise.all(promises);
 
-    return jsonResponse({ success: true, message: 'Store data saved' });
+    return jsonResponse(request, { success: true, message: 'Store data saved' });
 }
 
 // Main handler
@@ -312,7 +320,7 @@ export default {
 
         // Handle CORS preflight
         if (request.method === 'OPTIONS') {
-            return new Response(null, { headers: corsHeaders });
+            return new Response(null, { headers: getCorsHeaders(request) });
         }
 
         // Route matching
@@ -337,10 +345,10 @@ export default {
             }
 
             // Fallback
-            return jsonResponse({ error: 'Not found' }, 404);
+            return jsonResponse(request, { error: 'Not found' }, 404);
         } catch (error) {
             console.error('Worker error:', error);
-            return jsonResponse({ error: 'Internal server error' }, 500);
+            return jsonResponse(request, { error: 'Internal server error' }, 500);
         }
     },
 };

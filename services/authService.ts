@@ -193,17 +193,32 @@ export function initSessionFromUrl(): boolean {
             // Si el token es un JWT del Hub (3 partes delimitadas por puntos), intentamos decodificar su payload
             if (authSession.split('.').length === 3) {
                 try {
-                    const payloadBytes = atob(authSession.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'));
+                    const base64Url = authSession.split('.')[1];
+                    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+
+                    // Add padding if needed
+                    const pad = base64.length % 4;
+                    const paddedBase64 = pad ? base64 + '='.repeat(4 - pad) : base64;
+
+                    console.log('[Auth Debug] Decoding JWT payload (base64url):', base64Url);
+
+                    const payloadBytes = atob(paddedBase64);
                     const payload = JSON.parse(payloadBytes);
+
+                    console.log('[Auth Debug] Decoded payload:', payload);
+
                     const role = (payload.role || '').toLowerCase();
-                    // Chequeamos si tiene rol dueño/admin
-                    if (role === 'owner' || role === 'admin' || role === 'dueno' || role === 'dueño' || role === 'encargado') {
+                    // Chequeamos si tiene rol dueño/admin/encargado
+                    if (role === 'owner' || role === 'admin' || role === 'dueno' || role === 'dueño' || role === 'encargado' || role === 'hub_user') {
+                        // Fix 2026-03-25: If it's hub_user, we should still allow if it's coming from Hub
                         const uniqueSig = `HZ_SECURE_${Date.now()}`;
                         cookieValueToSet = btoa(`admin_active:::${uniqueSig}`);
-                        console.log('[Auth] Token JWT válido con rol auth. Estableciendo cookie admin segura.');
+                        console.log(`[Auth] Token JWT válido con rol '${role}'. Estableciendo cookie admin segura.`);
+                    } else {
+                        console.warn(`[Auth] Token JWT tiene rol no administrativo: '${role}'`);
                     }
                 } catch (e) {
-                    console.log('[Auth] Error analizando JWT en fallback:', e);
+                    console.error('[Auth] Error analizando JWT en fallback:', e);
                 }
             }
 
